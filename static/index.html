@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Samantha — Speech-to-Speech Assistant</title>
+  <style>
+    :root {
+      --bg: #121113;
+      --card-bg: #1c1b1f;
+      --accent: #e56847;
+      --accent-glow: rgba(229, 104, 71, 0.35);
+      --text: #f3eff5;
+      --text-muted: #9e9a9f;
+      --user-bubble: #2b2930;
+      --her-bubble: #342825;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1.5rem;
+    }
+
+    header {
+      text-align: center;
+      margin-top: 1rem;
+    }
+
+    h1 {
+      font-size: 2.2rem;
+      font-weight: 300;
+      letter-spacing: 0.15em;
+      color: var(--accent);
+      text-transform: uppercase;
+    }
+
+    .status-badge {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-top: 0.35rem;
+      display: inline-block;
+      padding: 0.25rem 0.8rem;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.05);
+      letter-spacing: 0.05em;
+      transition: all 0.2s ease;
+    }
+
+    .status-badge.listening {
+      color: #ff8566;
+      background: rgba(229, 104, 71, 0.2);
+    }
+
+    .status-badge.speaking {
+      color: #6ee7b7;
+      background: rgba(110, 231, 183, 0.15);
+    }
+
+    #chat-container {
+      width: 100%;
+      max-width: 680px;
+      flex-grow: 1;
+      overflow-y: auto;
+      margin: 1.5rem 0;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      padding-right: 0.5rem;
+    }
+
+    .msg {
+      max-width: 82%;
+      padding: 0.9rem 1.25rem;
+      border-radius: 1.25rem;
+      line-height: 1.55;
+      font-size: 1.05rem;
+      animation: fadeIn 0.25s ease-in;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .msg.user {
+      align-self: flex-end;
+      background: var(--user-bubble);
+      color: var(--text);
+      border-bottom-right-radius: 0.25rem;
+    }
+
+    .msg.assistant {
+      align-self: flex-start;
+      background: var(--her-bubble);
+      border-left: 3px solid var(--accent);
+      color: var(--text);
+      border-bottom-left-radius: 0.25rem;
+    }
+
+    .controls-wrapper {
+      width: 100%;
+      max-width: 680px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.25rem;
+    }
+
+    .voice-hub {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .mic-btn {
+      background: var(--card-bg);
+      border: 2px solid var(--accent);
+      color: var(--accent);
+      width: 84px;
+      height: 84px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      box-shadow: 0 0 20px var(--accent-glow);
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .mic-btn:hover {
+      transform: scale(1.06);
+    }
+
+    .mic-btn.recording {
+      background: var(--accent);
+      color: white;
+      box-shadow: 0 0 35px rgba(229, 104, 71, 0.9);
+      animation: pulse 1.4s infinite;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+      100% { transform: scale(1); }
+    }
+
+    .mic-label {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .input-bar {
+      width: 100%;
+      display: flex;
+      gap: 0.5rem;
+      background: var(--card-bg);
+      padding: 0.35rem 0.6rem;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .input-bar input {
+      flex-grow: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text);
+      padding: 0.4rem 1rem;
+      font-size: 0.95rem;
+    }
+
+    .send-btn {
+      background: rgba(229, 104, 71, 0.2);
+      color: var(--accent);
+      border: 1px solid var(--accent);
+      padding: 0.4rem 1.1rem;
+      border-radius: 999px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: background 0.2s ease;
+    }
+
+    .send-btn:hover {
+      background: var(--accent);
+      color: white;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Samantha</h1>
+    <div class="status-badge" id="status-indicator">Ready</div>
+  </header>
+
+  <div id="chat-container">
+    <div class="msg assistant">Hello. Tap the microphone to talk with me.</div>
+  </div>
+
+  <div class="controls-wrapper">
+    <div class="voice-hub">
+      <button class="mic-btn" id="mic-btn" title="Click to speak (Speech-to-Speech)">
+        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+          <line x1="12" y1="19" x2="12" y2="23"/>
+          <line x1="8" y1="23" x2="16" y2="23"/>
+        </svg>
+      </button>
+      <div class="mic-label" id="mic-label">Tap to start speaking</div>
+    </div>
+
+    <!-- Text input fallback as per docs/architecture.md -->
+    <form class="input-bar" id="chat-form">
+      <input type="text" id="text-input" placeholder="Type here if you prefer not to speak..." autocomplete="off">
+      <button type="submit" class="send-btn" id="send-btn">Send</button>
+    </form>
+  </div>
+
+  <script>
+    let conversationId = null;
+    let mediaRecorder = null;
+    let audioChunks = [];
+    let isRecording = false;
+    let audioPlayer = new Audio();
+
+    const statusBadge = document.getElementById("status-indicator");
+    const micLabel = document.getElementById("mic-label");
+    const chatContainer = document.getElementById("chat-container");
+    const chatForm = document.getElementById("chat-form");
+    const textInput = document.getElementById("text-input");
+    const micBtn = document.getElementById("mic-btn");
+
+    async function initConversation() {
+      try {
+        const resp = await fetch("/api/v1/conversations", { method: "POST" });
+        const data = await resp.json();
+        conversationId = data.conversation_id;
+      } catch (err) {
+        console.error("Conversation init failed", err);
+      }
+    }
+    initConversation();
+
+    function setStatus(text, badgeClass = "") {
+      statusBadge.textContent = text;
+      statusBadge.className = "status-badge " + badgeClass;
+    }
+
+    function appendMessage(text, role) {
+      const bubble = document.createElement("div");
+      bubble.className = `msg ${role}`;
+      bubble.textContent = text;
+      chatContainer.appendChild(bubble);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
+    function playResponseAudio(audioBase64, contentType) {
+      setStatus("Speaking...", "speaking");
+      micLabel.textContent = "Samantha is speaking...";
+      audioPlayer.src = `data:${contentType};base64,${audioBase64}`;
+      audioPlayer.play();
+      audioPlayer.onended = () => {
+        setStatus("Ready");
+        micLabel.textContent = "Tap to speak";
+      };
+    }
+
+    // --- Speech-to-Speech Flow (Direct Audio Stream) ---
+    async function startRecording() {
+      // If audio is currently playing, stop it immediately (interruption support)
+      if (!audioPlayer.paused) {
+        audioPlayer.pause();
+      }
+
+      // Check if mediaDevices is supported in current context (secure context: localhost/https)
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setStatus("Insecure Context");
+        micLabel.innerHTML = "<span style='color: #ff6b6b;'>Microphone requires a secure origin (https or localhost). If opening via IP, use <b>localhost:8000</b> or <b>127.0.0.1:8000</b>.</span>";
+        return;
+      }
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          }
+        });
+        audioChunks = [];
+        
+        // Choose best supported mime type
+        let mimeType = 'audio/webm';
+        if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+          mimeType = 'audio/webm;codecs=opus';
+        } else if (MediaRecorder.isTypeSupported('audio/webm')) {
+          mimeType = 'audio/webm';
+        } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+          mimeType = 'audio/mp4';
+        } else if (MediaRecorder.isTypeSupported('audio/ogg')) {
+          mimeType = 'audio/ogg';
+        }
+
+        mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data && event.data.size > 0) {
+            audioChunks.push(event.data);
+          }
+        };
+
+        mediaRecorder.onstop = async () => {
+          // Release mic tracks
+          stream.getTracks().forEach(track => track.stop());
+
+          const audioBlob = new Blob(audioChunks, { type: mimeType || 'audio/webm' });
+          if (audioBlob.size === 0) return;
+
+          await uploadAndProcessSpeech(audioBlob, mimeType || 'audio/webm');
+        };
+
+        mediaRecorder.start(250); // Slice data every 250ms
+        isRecording = true;
+        micBtn.classList.add("recording");
+        setStatus("Listening...", "listening");
+        micLabel.textContent = "Listening... tap button when finished";
+      } catch (err) {
+        console.error("Microphone access error:", err);
+        setStatus("Mic Error");
+        if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+          micLabel.innerHTML = "<span style='color: #ff6b6b;'>Permission denied. Click the lock/settings icon in your address bar and set Microphone to <b>Allow</b>.</span>";
+        } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
+          micLabel.innerHTML = "<span style='color: #ff6b6b;'>No microphone found. Please connect or enable an audio input device.</span>";
+        } else if (err.name === "NotReadableError" || err.name === "TrackStartError") {
+          micLabel.innerHTML = "<span style='color: #ff6b6b;'>Microphone is in use by another app or OS is blocking hardware access.</span>";
+        } else {
+          micLabel.innerHTML = `<span style='color: #ff6b6b;'>Microphone error (${err.name}): ${err.message || 'Access blocked'}</span>`;
+        }
+      }
+    }
+
+    function stopRecording() {
+      if (mediaRecorder && isRecording) {
+        mediaRecorder.stop();
+        isRecording = false;
+        micBtn.classList.remove("recording");
+        setStatus("Processing voice...");
+        micLabel.textContent = "Processing speech...";
+      }
+    }
+
+    async function uploadAndProcessSpeech(blob, mimeType) {
+      if (!conversationId) await initConversation();
+
+      const formData = new FormData();
+      const ext = mimeType.includes("webm") ? "webm" : "mp4";
+      formData.append("audio", blob, `speech.${ext}`);
+
+      try {
+        const resp = await fetch(`/api/v1/conversations/${conversationId}/audio-turns`, {
+          method: "POST",
+          body: formData
+        });
+
+        const data = await resp.json();
+        if (resp.ok && data.status === "completed") {
+          // Show user speech transcription and assistant speech response
+          appendMessage(data.user_message, "user");
+          appendMessage(data.assistant_text, "assistant");
+
+          if (data.audio && data.audio.status === "ready" && data.audio.audio_base64) {
+            playResponseAudio(data.audio.audio_base64, data.audio.content_type);
+          } else {
+            setStatus("Ready");
+            micLabel.textContent = "Tap to speak";
+          }
+        } else {
+          appendMessage(data.error || "Could not process speech.", "assistant");
+          setStatus("Error");
+          micLabel.textContent = "Tap to speak";
+        }
+      } catch (err) {
+        console.error("Audio turn error:", err);
+        appendMessage("Network or server error processing speech.", "assistant");
+        setStatus("Error");
+        micLabel.textContent = "Tap to speak";
+      }
+    }
+
+    micBtn.addEventListener("click", () => {
+      if (!isRecording) {
+        startRecording();
+      } else {
+        stopRecording();
+      }
+    });
+
+    // Text fallback handler
+    chatForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const text = textInput.value.trim();
+      if (!text) return;
+
+      appendMessage(text, "user");
+      textInput.value = "";
+      setStatus("Thinking...");
+
+      try {
+        const resp = await fetch(`/api/v1/conversations/${conversationId}/turns`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: text, response_mode: "text_and_audio" })
+        });
+        const data = await resp.json();
+        if (resp.ok && data.status === "completed") {
+          appendMessage(data.assistant_text, "assistant");
+          if (data.audio && data.audio.status === "ready" && data.audio.audio_base64) {
+            playResponseAudio(data.audio.audio_base64, data.audio.content_type);
+          } else {
+            setStatus("Ready");
+          }
+        }
+      } catch (e) {
+        setStatus("Error");
+      }
+    });
+  </script>
+</body>
+</html>
