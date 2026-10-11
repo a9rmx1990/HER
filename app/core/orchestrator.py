@@ -23,6 +23,7 @@ class ConversationOrchestrator:
         self.llm = llm_provider
         self.voice = voice_provider
         self.stt = stt_provider
+        # In-memory session history for MVP
         self.sessions: Dict[str, List[Message]] = {}
 
     def get_or_create_session(self, conversation_id: str) -> List[Message]:
@@ -76,6 +77,7 @@ class ConversationOrchestrator:
                     audio_base64=audio_base64
                 )
             except Exception as e:
+                # TTS failure does not erase valid text response (as per architecture.md)
                 audio_info = AudioInfo(
                     status="unavailable",
                     content_type="audio/mpeg"
@@ -89,3 +91,45 @@ class ConversationOrchestrator:
             assistant_text=assistant_text,
             audio=audio_info
         )
+
+    async def execute_audio_turn(
+        self,
+        conversation_id: str,
+        audio_bytes: bytes,
+        filename: str = "audio.wav",
+        content_type: str = "audio/wav"
+    ) -> TurnResponse:
+        turn_id = str(uuid.uuid4())
+
+        # 1. Speech-to-Text Transcription
+        try:
+            transcript = await self.stt.transcribe_audio(
+                audio_bytes=audio_bytes,
+                filename=filename,
+                content_type=content_type
+            )
+        except Exception as e:
+            return TurnResponse(
+                turn_id=turn_id,
+                conversation_id=conversation_id,
+                status=TurnStatus.FAILED,
+                user_message="",
+                assistant_text="",
+                error=f"STT transcription failure: {str(e)}"
+            )
+
+        if not transcript.strip():
+            return TurnResponse(
+                turn_id=turn_id,
+                conversation_id=conversation_id,
+                status=TurnStatus.FAILED,
+                user_message="",
+                assistant_text="",
+                error="No intelligible speech detected."
+            )
+
+        # 2. Execute conversation turn with audio output
+        req = TurnRequest(message=transcript, response_mode="text_and_audio")
+        res = await self.execute_turn(conversation_id, req)
+        res.turn_id = turn_id
+        return res
