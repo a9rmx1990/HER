@@ -1,8 +1,8 @@
 import httpx
-from app.providers.base import VoiceProvider, SpeechToTextProvider
+from app.providers.base import VoiceProvider
 
 
-class ElevenLabsVoiceAdapter(VoiceProvider, SpeechToTextProvider):
+class ElevenLabsVoiceAdapter(VoiceProvider):
     def __init__(
         self,
         api_key: str,
@@ -10,9 +10,8 @@ class ElevenLabsVoiceAdapter(VoiceProvider, SpeechToTextProvider):
         default_model_id: str = "eleven_flash_v2_5"
     ):
         self.api_key = api_key
-        self.voice_id = default_voice_id
-        self.model_id = default_model_id
-        self.base_url = "https://api.elevenlabs.io/v1"
+        self.default_voice_id = default_voice_id
+        self.default_model_id = default_model_id
 
     async def synthesize_speech(
         self,
@@ -23,10 +22,10 @@ class ElevenLabsVoiceAdapter(VoiceProvider, SpeechToTextProvider):
         if not self.api_key:
             raise ValueError("ELEVENLABS_API_KEY is not configured.")
 
-        selected_voice = voice_id or self.voice_id
-        selected_model = model_id or self.model_id
-        url = f"{self.base_url}/text-to-speech/{selected_voice}"
+        selected_voice = voice_id or self.default_voice_id
+        selected_model = model_id or self.default_model_id
 
+        url = f"https://api.elevenlabs.io/v1/text-to-speech/{selected_voice}"
         headers = {
             "xi-api-key": self.api_key,
             "Content-Type": "application/json"
@@ -41,9 +40,32 @@ class ElevenLabsVoiceAdapter(VoiceProvider, SpeechToTextProvider):
         }
 
         async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(url, headers=headers, json=payload)
-            if response.status_code != 200:
+            resp = await client.post(url, headers=headers, json=payload)
+            if resp.status_code != 200:
                 raise RuntimeError(
-                    f"ElevenLabs TTS failed: {response.status_code} - {response.text}"
+                    f"ElevenLabs TTS error ({resp.status_code}): {resp.text[:200]}"
                 )
-            return response.content
+            return resp.content
+
+    async def transcribe_audio(
+        self,
+        audio_bytes: bytes,
+        filename: str = "audio.wav",
+        content_type: str = "audio/wav"
+    ) -> str:
+        if not self.api_key:
+            raise ValueError("ELEVENLABS_API_KEY is not configured.")
+
+        url = "https://api.elevenlabs.io/v1/speech-to-text"
+        headers = {"xi-api-key": self.api_key}
+        files = {"file": (filename, audio_bytes, content_type)}
+        data = {"model_id": "scribe_v1"}
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(url, headers=headers, files=files, data=data)
+            if resp.status_code != 200:
+                raise RuntimeError(
+                    f"ElevenLabs STT error ({resp.status_code}): {resp.text[:200]}"
+                )
+            result = resp.json()
+            return result.get("text", "").strip()
