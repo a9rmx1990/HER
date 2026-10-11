@@ -24,3 +24,16 @@ class VoiceProvider(ABC):
     ) -> bytes:
         """Synthesize text to audio bytes."""
         pass
+
+
+class SpeechToTextProvider(ABC):
+    @abstractmethod
+    async def transcribe_audio(
+        self,
+        audio_bytes: bytes,
+        filename: str = "audio.wav",
+        content_type: str = "audio/wav"
+    ) -> str:
+        """Transcribe speech audio bytes to text transcript."""
+        pass
+
